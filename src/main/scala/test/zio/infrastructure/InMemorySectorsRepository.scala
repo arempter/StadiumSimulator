@@ -17,10 +17,6 @@ case class InMemorySectorsRepository() extends SectorsRepository.Service {
   final val NO_FREE_SEATS = "No free seats available in this Sector"
 
   private val random = Random
-  val sectors = 'A' to 'U'
-  val randomTicket = GameTicket(s"game${random.nextInt(3)}",
-    Seat(Sector(sectors(random.nextInt(21)).toString), random.nextInt(noRows), random.nextInt(rowSize)),
-    Supporter(random.alphanumeric.take(10).mkString, random.alphanumeric.take(10).mkString))
 
   def reserveSeat(ticket: GameTicket): ZSTM[Database, String, GameTicket] = {
     val outsideCapacity = ticket.seat.row > noRows || ticket.seat.seat > rowSize
@@ -33,6 +29,11 @@ case class InMemorySectorsRepository() extends SectorsRepository.Service {
   }
 
   override def reserveSeats(noOfSeats: Int, sectorName: String): ZIO[Database with Clock, String, List[GameTicket]] = {
+    val sectors = 'A' to 'U'
+    val randomTicket = GameTicket(s"game${random.nextInt(3)}",
+      Seat(Sector(sectors(random.nextInt(21)).toString), random.nextInt(noRows), random.nextInt(rowSize)),
+      Supporter(random.alphanumeric.take(10).mkString, random.alphanumeric.take(10).mkString))
+
     ZSTM.atomically(
       for {
         firstFree     <- STM.succeed(randomTicket)

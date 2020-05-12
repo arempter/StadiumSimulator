@@ -15,8 +15,6 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
   val sectorA: Sector = Sector("A")
   val sectorB: Sector = Sector("B")
 
-  val matchTicket: GameTicket = GameTicket("game1", Seat(sectorB, 1, 1), Supporter("123", "s1"))
-
   val db: STM[Nothing, TSet[GameTicket]] = TSet.make[GameTicket](
     GameTicket("game1", Seat(sectorB, 1, 1), Supporter("123", "s10")), GameTicket("game1", Seat(sectorB, 1, 4), Supporter("123", "s12")),
     GameTicket("game2", Seat(sectorB, 1, 2), Supporter("124", "s2")), GameTicket("game1", Seat(sectorB, 1, 1), Supporter("125", "s3")),
@@ -32,8 +30,11 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
 
   val testReserveSeats: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in non empty db")(
     testM("reserveSeats should return seats seq that can be purchased") {
-      val res = SectorsRepository.reserveSeats(2, sectorA.name).provideLayer(testEnv(db))
-      assertM(res)(equalTo(List(Seat(sectorA, 1, 2), Seat(sectorA, 1, 3))))
+      for {
+        res <- SectorsRepository.reserveSeats(2, sectorA.name).provideLayer(testEnv(db))
+      } yield {
+        assert(res.size)(equalTo(2))
+      }
     },
     testM("parallel reserveSeats should return seats seq that can be purchased") {
       val res = for {
