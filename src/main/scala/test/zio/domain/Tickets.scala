@@ -1,7 +1,7 @@
 package test.zio.domain
 
 import test.zio.domain.Database.Database
-import test.zio.domain.model.MatchTicket
+import test.zio.domain.model.GameTicket
 import test.zio.infrastructure.InMemoryTicketService
 import zio.{Has, UIO, ZIO, ZLayer}
 
@@ -11,7 +11,7 @@ object Tickets {
   // capacity - number of ticket desks
 
   trait Service {
-    def sellTickets(matchTickets: Seq[MatchTicket]): UIO[Seq[MatchTicket]]
+    def sellTickets(matchTickets: Seq[GameTicket]): UIO[Seq[GameTicket]]
     def soldTickets(): ZIO[Database, Nothing, Int]
   }
 
