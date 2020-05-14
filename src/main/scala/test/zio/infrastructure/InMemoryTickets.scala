@@ -26,23 +26,23 @@ case class InMemoryTickets() extends Tickets.Service {
     else if (existingTickets.nonEmpty) STM.fail("Seat already sold!") else STM.succeed()
   }
 
-  private def reserveSeat(ticket: GameTicket): ZSTM[Database, String, GameTicket] = {
+  private def reserveSeat(ticket: GameTicket, deskId: Int = 0): ZSTM[Database, String, GameTicket] = {
     val ticketSold: GameTicket => Boolean = gt => gt.seat.seat == ticket.seat.seat
 
     for {
       isSold   <- Database.exists(ticket)
       seatSold <- Database.select(ticketSold)
-      _        <- STM.succeed(println(s"Trying to reserve seat: $ticket")) *> canBeReserved(isSold, ticket, seatSold)
+      _        <- STM.succeed(println(s"DeskId: $deskId, trying to reserve seat: $ticket")) *> canBeReserved(isSold, ticket, seatSold)
       _        <- Database.upsert(ticket)
     } yield ticket
   }
 
-  override def reserveSeats(noOfSeats: Int, sectorName: String, game: String): ZIO[Tickets, String, List[GameTicket]] =
+  override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Tickets, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
         firstFree <- findFreeSeat(noOfSeats, sectorName)
         booked <- ZSTM.foreach(firstFree.seat.seat until firstFree.seat.seat + noOfSeats) { nextSeat =>
-          reserveSeat(firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat)))
+          reserveSeat(firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat)), deskId)
         }
       } yield booked)
 

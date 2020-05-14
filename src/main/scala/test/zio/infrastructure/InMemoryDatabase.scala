@@ -16,7 +16,7 @@ case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
 
   override def upsert(ticket: GameTicket): STM[Nothing, Unit] = ticket match {
     case row: GameTicket => db.put(row)
-    case         _ => STM.unit
+    case _               => STM.unit
   }
 
   override def count(): UIO[Int] = db.size.commit

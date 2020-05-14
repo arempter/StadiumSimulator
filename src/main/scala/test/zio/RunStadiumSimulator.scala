@@ -5,7 +5,9 @@ import test.zio.domain.Tickets.Tickets
 import test.zio.domain.model.GameTicket
 import test.zio.domain.{Database, Tickets}
 import zio._
+import zio.clock.Clock
 import zio.stm.TSet
+import zio.duration._
 
 import scala.util.Random
 
@@ -17,12 +19,14 @@ object RunStadiumSimulator extends zio.App {
   val random     = Random
   val game       = s"game${random.nextInt(3)}"
 
-  //todo: will not fully work now
+  val schedule: Schedule[Clock, Any, (Int, Duration)] = Schedule.recurs(5) && Schedule.exponential(100.milliseconds, 0.2)
+  val handleFailure: Int => ZIO[Any, Nothing, Unit] = id => IO.succeed(println(s"Id: $id Failed to book")) *> IO.succeed()
+
   val program: ZIO[Tickets, String, Unit] =
-    (ticketsOffice(1, random.nextInt(10), random.nextInt(6), game) &>
-      ticketsOffice(2, random.nextInt(10), random.nextInt(6), game) &>
-      ticketsOffice(3, random.nextInt(10), random.nextInt(6), game) &>
-      ticketsOffice(4, random.nextInt(10), random.nextInt(6), game)
+    (ticketsOffice(1, random.nextInt(3), random.nextInt(4), game).retry(schedule).orElse(handleFailure(1)) &>
+      ticketsOffice(2, random.nextInt(3), random.nextInt(4), game).retry(schedule).orElse(handleFailure(2)) &>
+      ticketsOffice(3, random.nextInt(3), random.nextInt(4), game).retry(schedule).orElse(handleFailure(3)) &>
+      ticketsOffice(4, random.nextInt(3), random.nextInt(4), game).retry(schedule).orElse(handleFailure(4))
       ) *> soldSummary
 
   override def run(args: List[String]): ZIO[zio.ZEnv, Nothing, Int] =

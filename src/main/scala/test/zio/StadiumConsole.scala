@@ -34,9 +34,9 @@ object StadiumConsole extends zio.App {
       _    <- console.putStrLn("Select sector...")
       s    <- zio.console.getStrLn
       sold <- {
-        val selectInSector: GameTicket => Boolean = gt => gt.seat.sector.name == s.toUpperCase
-        Database.select(selectInSector).commit
-          .map(_.groupBy(_.seat.row)).map(_.view.mapValues(_.map(_.seat.seat)))
+               val selectInSector: GameTicket => Boolean = gt => gt.seat.sector.name == s.toUpperCase
+               Database.select(selectInSector).commit
+                .map(_.groupBy(_.seat.row)).map(_.view.mapValues(_.map(_.seat.seat)))
       }
       _    <- Rendering.showSector(s.toUpperCase, sold)
     } yield ()

@@ -14,7 +14,7 @@ object StadiumSimulator {
 
   def ticketsOffice(id: Int, rounds: Int, tickets: Int, game: String): ZIO[Tickets, String, Unit] =
     for {
-      f <- ZIO.foreach(1 to rounds)(_ => Tickets.reserveSeats(tickets, randomSector.toString, game).fork.delay(80.milliseconds))
+      f <- ZIO.foreach(1 to rounds)(_ => Tickets.reserveSeats(id, tickets, randomSector.toString, game).fork.delay(80.milliseconds))
       r <- ZIO.foreach(f)(_.join)
       result = r.flatten
       _ <- ZIO.succeed(println(s"TicketDesk id: $id sold: ${result.size}"))
