@@ -1,25 +1,30 @@
 package test.zio.application
 
-import test.zio.domain.Database.Database
-import test.zio.domain.Tickets.TicketService
-import test.zio.domain.{Database, Tickets}
+import test.zio.domain.Tickets
+import test.zio.domain.Tickets.Tickets
 import zio.ZIO
 import zio.duration._
 
+import scala.util.Random
+
 object StadiumSimulator {
 
-  def ticketsOffice(id: Int, rounds: Int, tickets: Int, game: String): ZIO[TicketService with TicketService, String, Unit] =
+  private val sectorLetters = 'A' to 'U'
+  def randomSector = sectorLetters(Random.nextInt(21))
+
+  def ticketsOffice(id: Int, rounds: Int, tickets: Int, game: String): ZIO[Tickets, String, Unit] =
     for {
-      f <- ZIO.foreach(1 to rounds)(_ => Tickets.reserveSeats(tickets, "A", game).fork.delay(80.milliseconds))
+      f <- ZIO.foreach(1 to rounds)(_ => Tickets.reserveSeats(tickets, randomSector.toString, game).fork.delay(80.milliseconds))
       r <- ZIO.foreach(f)(_.join)
       result = r.flatten
-      _ <- ZIO.succeed(println(s"ticketDesk id: $id sold: ${result.size}"))
+      _ <- ZIO.succeed(println(s"TicketDesk id: $id sold: ${result.size}"))
     } yield()
 
-  def soldSummary: ZIO[Database, Nothing, Unit] =
+
+  def soldSummary: ZIO[Tickets, Nothing, Unit] =
     for {
-      sold <- Database.count()
-      _    <- ZIO.succeed(println(s"sold total : $sold"))
+      sold <- Tickets.soldTickets()
+      _    <- ZIO.succeed(println(s"Sold total : $sold"))
     } yield ()
 
 }

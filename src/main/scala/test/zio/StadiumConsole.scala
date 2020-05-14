@@ -1,8 +1,8 @@
 package test.zio
 import test.zio.domain.Database.Database
 import test.zio.domain.Rendering.Rendering
-import test.zio.domain.Tickets.TicketService
-import test.zio.domain.model.GameTicket
+import test.zio.domain.Tickets.Tickets
+import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
 import test.zio.domain.{Database, Rendering, Tickets}
 import zio._
 import zio.console.Console
@@ -22,8 +22,7 @@ object StadiumConsole extends zio.App {
     input <- zio.console.getStrLn
   } yield input
 
-  //todo: Add some validation to input
-  def menuOptions(i: String): ZIO[Console with TicketService with Rendering, Serializable, Any] =  i match {
+  def menuOptions(i: String): ZIO[Console with Tickets with Rendering, Serializable, Any] =  i match {
     case "s" => sectorsMenu
     case "b" => ticketMenu
     case "q" => ZIO.fail("closing console...")
@@ -35,23 +34,36 @@ object StadiumConsole extends zio.App {
       _    <- console.putStrLn("Select sector...")
       s    <- zio.console.getStrLn
       sold <- {
-        val selectInSector: GameTicket => Boolean = gt => gt.seat.sector.name == s
+        val selectInSector: GameTicket => Boolean = gt => gt.seat.sector.name == s.toUpperCase
         Database.select(selectInSector).commit
           .map(_.groupBy(_.seat.row)).map(_.view.mapValues(_.map(_.seat.seat)))
       }
-      _    <- Rendering.showSector(s, sold)
+      _    <- Rendering.showSector(s.toUpperCase, sold)
     } yield ()
+
+  //todo: Add some validation to input
+  def parseTicketInput(seats: String, sector: String, row: Int): List[Seat] = {
+    val seatsP = seats.split(",").toList
+    seatsP.map(s=>Seat(Sector(sector), row, s.toInt))
+  }
 
   val ticketMenu =
     for {
-      _   <- console.putStrLn("Buying tickets...")
-      _   <- console.putStrLn("What game?")
-      g   <- zio.console.getStrLn
-      _   <- console.putStrLn("How many tickets?")
-      t   <- zio.console.getStrLn
-      _   <- console.putStrLn("Preferred sector?")
-      s   <- zio.console.getStrLn
-      _   <- Tickets.reserveSeats(t.toInt, s, g)
+      _         <- console.putStrLn("Buying tickets...")
+      _         <- console.putStrLn("What game?")
+      game      <- zio.console.getStrLn
+      _         <- console.putStrLn("Supporter Id")
+      id        <- zio.console.getStrLn
+      _         <- console.putStrLn("Supporter Name")
+      name      <- zio.console.getStrLn
+      _         <- console.putStrLn("Sector?")
+      sector    <- zio.console.getStrLn
+      _         <- console.putStrLn("Which row?")
+      row       <- zio.console.getStrLn
+      _         <- console.putStrLn("Which seats?, comma separated")
+      seats     <- zio.console.getStrLn
+      _         <- Tickets.reserveSeats(parseTicketInput(seats, sector.toUpperCase, row.toInt), game, Supporter(id, name))
+                  .catchAll(e=>console.putStrLn(e) *> IO.succeed())
     } yield ()
 
   val menuProgram =
