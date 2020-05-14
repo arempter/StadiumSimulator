@@ -13,7 +13,7 @@ case class InMemorySectorsRepository() extends SectorsRepository.Service {
 
   // todo: capacity per Sector && some validation
   val rowSize = 25
-  val noRows = 25
+  val noRows = 10
   val NO_FREE_SEATS = "No free seats available in this Sector"
 
   private val random = Random
@@ -28,6 +28,7 @@ case class InMemorySectorsRepository() extends SectorsRepository.Service {
     } yield ticket
   }
 
+  // todo bug: > goes over capacity of row and seat
   override def reserveSeats(noOfSeats: Int, sectorName: String, game: String): ZIO[Database with Clock, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
@@ -40,8 +41,17 @@ case class InMemorySectorsRepository() extends SectorsRepository.Service {
   private def findFreeSeat(noOfSeats: Int, sectorName: String): ZSTM[Database, String, GameTicket] = {
     val sectors = 'A' to 'U'
     def supporter = random.alphanumeric.take(10).mkString
+    def row = {
+      val ch = random.nextInt(noRows)
+      if (ch == 0) 1 else ch
+    }
+    def seat = {
+      val ch = random.nextInt(rowSize)
+      if (ch == 0) 1 else ch
+    }
+
     STM.succeed(GameTicket(s"game${random.nextInt(3)}",
-      Seat(Sector(sectors(random.nextInt(21)).toString), random.nextInt(noRows), random.nextInt(rowSize)),
+      Seat(Sector(sectors(random.nextInt(21)).toString), row, seat),
       Supporter(random.alphanumeric.take(10).mkString, supporter)))
   }
 
