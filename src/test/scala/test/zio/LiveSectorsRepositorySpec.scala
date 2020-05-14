@@ -1,7 +1,7 @@
 package test.zio
 
 import _root_.test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
-import _root_.test.zio.domain.{Database, SectorsRepository}
+import _root_.test.zio.domain.{Database, Sectors}
 import zio.ZIO
 import zio.stm.{STM, TSet}
 import zio.test.Assertion._
@@ -25,22 +25,22 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
 
   private def testEnv(db: STM[Nothing,TSet[GameTicket]]) = {
     val dbLayer = db.commit.toLayer >>> Database.live
-    dbLayer ++ SectorsRepository.live
+    dbLayer ++ Sectors.live
   }
 
   val testReserveSeats: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in non empty db")(
     testM("reserveSeats should return seats seq that can be purchased") {
       for {
-        res <- SectorsRepository.reserveSeats(2, sectorA.name).provideLayer(testEnv(db))
+        res <- Sectors.reserveSeats(2, sectorA.name).provideLayer(testEnv(db))
       } yield {
         assert(res.size)(equalTo(2))
       }
     },
     testM("parallel reserveSeats should return seats seq that can be purchased") {
       val res = for {
-        f1 <- SectorsRepository.reserveSeats(2, "A").fork
-        f2 <- SectorsRepository.reserveSeats(2, "A").fork
-        f3 <- SectorsRepository.reserveSeats(2, "A").fork
+        f1 <- Sectors.reserveSeats(2, "A").fork
+        f2 <- Sectors.reserveSeats(2, "A").fork
+        f3 <- Sectors.reserveSeats(2, "A").fork
         r1 <- f1.join
         r2 <- f2.join
         r3 <- f3.join
@@ -55,7 +55,7 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("many parallel reservation should work"){
       val res = for {
-        f <- ZIO.foreach(1 to 20)(_ => SectorsRepository.reserveSeats(4, "B").fork)
+        f <- ZIO.foreach(1 to 20)(_ => Sectors.reserveSeats(4, "B").fork)
         r <- ZIO.foreach(f)(_.join)
       } yield {
         assert(r.flatten.size)(equalTo(20*4))
@@ -64,22 +64,22 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("reserveSeats to many seats should fail"){
       for {
-        res <- SectorsRepository.reserveSeats(26, sectorA.name).provideLayer(testEnv(db)).flip
+        res <- Sectors.reserveSeats(26, sectorA.name).provideLayer(testEnv(db)).flip
       } yield assert(res)(equalTo("No free seats available in this Sector"))
     },
     testM("findFreeSeats should retrun first seats in each row") {
-      val res = SectorsRepository.findFreeSeats(3, sectorB.name).commit.provideLayer(testEnv(db))
+      val res = Sectors.findFreeSeats(3, sectorB.name).commit.provideLayer(testEnv(db))
       assertM(res)(equalTo(Seat(sectorB, 1, 5)))
     },
     testM("findFreeSeats Fails when capacity is incorrect"){
       for {
-        res <- SectorsRepository.findFreeSeats(26, sectorA.name).commit.provideLayer(testEnv(db)).flip
+        res <- Sectors.findFreeSeats(26, sectorA.name).commit.provideLayer(testEnv(db)).flip
       } yield assert(res)(equalTo("No free seats available in this Sector"))
     }
   )
   val testReserveSeatsWithEmptyDB: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in empty db")(
     testM("reserve seats should retrun seat seq on random start") {
-      val res = SectorsRepository.reserveSeats(5, sectorA.name).provideLayer(testEnv(emptyDb))
+      val res = Sectors.reserveSeats(5, sectorA.name).provideLayer(testEnv(emptyDb))
       assertM(res.map(_.size))(equalTo(5))
     })
 
