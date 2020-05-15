@@ -1,3 +1,3 @@
 package test.zio.domain.model
 
-case class Supporter(id: String, name: String)
+case class Supporter(id: Int, name: String)

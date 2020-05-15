@@ -1,7 +1,7 @@
 package test.zio.infrastructure
 
 import test.zio.domain.Database
-import test.zio.domain.model.{GameTicket, Seat}
+import test.zio.domain.model.GameTicket
 import zio.UIO
 import zio.stm.{STM, TSet}
 
@@ -20,4 +20,13 @@ case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
   }
 
   override def count(): UIO[Int] = db.size.commit
+
+  override def countByDesk(id: Int): UIO[Int] = {
+    val byDesk: GameTicket => Boolean = gt => gt.deskId == id
+    for {
+      s <- select(byDesk).commit
+      r <- UIO.succeed(s.count(_.deskId == id))
+    } yield r
+  }
+
 }

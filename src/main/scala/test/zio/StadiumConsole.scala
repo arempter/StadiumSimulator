@@ -3,6 +3,7 @@ import test.zio.domain.Database.Database
 import test.zio.domain.Rendering.Rendering
 import test.zio.domain.Tickets.Tickets
 import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
+import test.zio.application.StadiumSimulator.ticketDeskSimulatorProgram
 import test.zio.domain.{Database, Rendering, Tickets}
 import zio._
 import zio.console.Console
@@ -16,18 +17,22 @@ object StadiumConsole extends zio.App {
 
   val displayMainMenu: RIO[Console, String] = for {
     _    <- console.putStrLn("Menu")
-    _    <- console.putStrLn("S to select sector...")
-    _    <- console.putStrLn("B to buy tickets")
-    _    <- console.putStrLn("Q to exit")
+    _    <- console.putStrLn("s - to select sector...")
+    _    <- console.putStrLn("b - to buy tickets")
+    _    <- console.putStrLn("r - to run simulation")
+    _    <- console.putStrLn("q - to exit")
     input <- zio.console.getStrLn
   } yield input
 
   def menuOptions(i: String): ZIO[Console with Tickets with Rendering, Serializable, Any] =  i match {
     case "s" => sectorsMenu
     case "b" => ticketMenu
-    case "q" => ZIO.fail("closing console...")
+    case "r" => simulationMenu
+    case "q" => ZIO.fail("Closing console...")
     case _   => displayMainMenu
   }
+
+  val simulationMenu: ZIO[Tickets, String, Unit] = ticketDeskSimulatorProgram
 
   val sectorsMenu: ZIO[Database with Rendering with Console, Throwable, Unit] =
     for {
@@ -62,7 +67,7 @@ object StadiumConsole extends zio.App {
       row       <- zio.console.getStrLn
       _         <- console.putStrLn("Which seats?, comma separated")
       seats     <- zio.console.getStrLn
-      _         <- Tickets.reserveSeats(parseTicketInput(seats, sector.toUpperCase, row.toInt), game, Supporter(id, name))
+      _         <- Tickets.reserveSeats(parseTicketInput(seats, sector.toUpperCase, row.toInt), game, Supporter(id.toInt, name))
                   .catchAll(e=>console.putStrLn(e) *> IO.succeed())
     } yield ()
 

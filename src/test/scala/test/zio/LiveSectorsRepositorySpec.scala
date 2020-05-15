@@ -16,10 +16,10 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
   val sectorB: Sector = Sector("B")
 
   val db: STM[Nothing, TSet[GameTicket]] = TSet.make[GameTicket](
-    GameTicket("game1", Seat(sectorB, 1, 1), Supporter("123", "s10")), GameTicket("game1", Seat(sectorB, 1, 4), Supporter("123", "s12")),
-    GameTicket("game2", Seat(sectorB, 1, 2), Supporter("124", "s2")), GameTicket("game1", Seat(sectorB, 1, 1), Supporter("125", "s3")),
-    GameTicket("game1", Seat(sectorA, 1, 1), Supporter("123", "s10")), GameTicket("game1", Seat(sectorA, 1, 4), Supporter("123", "s12")),
-    GameTicket("game2", Seat(sectorA, 1, 2), Supporter("124", "s2")), GameTicket("game1", Seat(sectorA, 1, 1), Supporter("125", "s3")),
+    GameTicket("game1", Seat(sectorB, 1, 1), Supporter(123, "s10")), GameTicket("game1", Seat(sectorB, 1, 4), Supporter(123, "s12")),
+    GameTicket("game2", Seat(sectorB, 1, 2), Supporter(124, "s2")), GameTicket("game1", Seat(sectorB, 1, 1), Supporter(125, "s3")),
+    GameTicket("game1", Seat(sectorA, 1, 1), Supporter(123, "s10")), GameTicket("game1", Seat(sectorA, 1, 4), Supporter(123, "s12")),
+    GameTicket("game2", Seat(sectorA, 1, 2), Supporter(124, "s2")), GameTicket("game1", Seat(sectorA, 1, 1), Supporter(125, "s3")),
   )
   val emptyDb: STM[Nothing, TSet[GameTicket]] = TSet.empty[GameTicket]
 
