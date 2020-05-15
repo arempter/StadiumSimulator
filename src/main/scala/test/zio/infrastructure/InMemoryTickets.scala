@@ -12,9 +12,10 @@ import scala.util.Random
 
 case class InMemoryTickets() extends Tickets.Service {
 
-  private val rowSize       = 25
-  private val noRows        = 10
-  private val random        = Random
+  private val rowSize                 = 25
+  private val noRows                  = 10
+  private val random                  = Random
+  private val reserveSeatsRetryPolicy = Schedule.recurs(5) && Schedule.exponential(1.second, 0.2)
 
   override def soldTickets(): ZIO[Database, Nothing, Int] = ZIO.accessM[Database](_.get.count())
 
@@ -44,21 +45,19 @@ case class InMemoryTickets() extends Tickets.Service {
       _        <- Database.upsert(ticket)
     } yield ticket
   }
-
   override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Tickets, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
         firstFree <- almostOKSeatSelector(game, noOfSeats, sectorName)
-        booked <- ZSTM.foreach(firstFree.seat.seat until firstFree.seat.seat + noOfSeats) { nextSeat =>
-          reserveSeat(firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat), deskId = deskId))
+        booked    <- ZSTM.foreach(firstFree.seat.seat until firstFree.seat.seat + noOfSeats) { nextSeat =>
+                                    reserveSeat(firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat), deskId = deskId))
         }
       } yield booked)
-      .retry(Schedule.recurs(5) && Schedule.exponential(1.second, 0.2))
+      .retry(reserveSeatsRetryPolicy)
 
   override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[Tickets, String, List[GameTicket]] =
     ZSTM.atomically(
-      ZSTM.foreach(seats) { seat => reserveSeat(GameTicket(game, seat, supporter)) }
-    )
+      ZSTM.foreach(seats) { seat => reserveSeat(GameTicket(game, seat, supporter)) })
 
   private def almostOKSeatSelector(game: String, noOfSeats: Int, sectorName: String): ZSTM[Database, String, GameTicket] = {
     val sectors   = 'A' to 'U'

@@ -39,9 +39,9 @@ object StadiumSimulator {
   private val handleFailure: Int => ZIO[Any, Nothing, Unit] = id => IO.succeed(println(s"Id: $id Failed to book all")) *> IO.succeed()
 
   def ticketDeskSimulatorProgram: ZIO[Tickets, String, Unit] =
-    (ticketsOffice(1, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(200.milliseconds).orElse(handleFailure(1)) &>
+     (ticketsOffice(1, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(200.milliseconds).orElse(handleFailure(1)) &>
       ticketsOffice(2, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(100.milliseconds).orElse(handleFailure(2)) &>
-      ticketsOffice(3, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(50.milliseconds).orElse(handleFailure(3)) &>
+      ticketsOffice(3, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(50.milliseconds).orElse(handleFailure(3))  &>
       ticketsOffice(4, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(400.milliseconds).orElse(handleFailure(4))) *> soldSummary
 
 }
