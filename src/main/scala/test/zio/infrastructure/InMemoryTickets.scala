@@ -1,13 +1,12 @@
 package test.zio.infrastructure
 
 import test.zio.domain.Database.Database
-import test.zio.domain.Tickets.Tickets
+import test.zio.domain.Tickets.TicketsEnv
 import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
 import test.zio.domain.{Database, Tickets}
-import zio.clock.Clock
-import zio.{Schedule, ZIO}
-import zio.stm.{STM, ZSTM}
 import zio.duration._
+import zio.stm.{STM, ZSTM}
+import zio.{Schedule, ZIO}
 
 import scala.util.Random
 
@@ -20,7 +19,7 @@ case class InMemoryTickets() extends Tickets.Service {
 
   override def soldTickets(): ZIO[Database, Nothing, Int] = ZIO.accessM[Database](_.get.count())
 
-  private def canBeReserved(isSold: Boolean, newTicket: GameTicket, existingTickets: List[GameTicket]): ZSTM[Any, String, Unit] = {
+  private def canBeReserved(isSold: Boolean, newTicket: GameTicket, existingTickets: List[GameTicket]): STM[String, Unit] = {
     val outsideCapacity = newTicket.seat.row > noRows || newTicket.seat.seat > rowSize
     if(isSold)
       STM.fail("Already sold!")
@@ -46,7 +45,7 @@ case class InMemoryTickets() extends Tickets.Service {
       _        <- Database.upsert(ticket)
     } yield ticket
   }
-  override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Database with Clock, String, List[GameTicket]] =
+  override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[TicketsEnv, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
         firstFree <- almostOKSeatSelector(game, noOfSeats, sectorName)
@@ -56,7 +55,7 @@ case class InMemoryTickets() extends Tickets.Service {
       } yield booked)
       .retry(reserveSeatsRetryPolicy)
 
-  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[Database, String, List[GameTicket]] =
+  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[TicketsEnv, String, List[GameTicket]] =
     ZSTM.atomically(
       ZSTM.foreach(seats) { seat => reserveSeat(GameTicket(game, seat, supporter)) })
 

@@ -2,7 +2,7 @@ package test.zio.infrastructure
 
 import org.fusesource.jansi.{Ansi, AnsiConsole}
 import test.zio.domain.Rendering
-import zio.ZIO
+import zio.{Task, ZIO}
 
 import scala.collection.MapView
 
@@ -46,7 +46,7 @@ case class ConsoleRendering() extends Rendering.Service {
     }
   }
 
-  override def showSector(sector: String, sold: MapView[Int,List[Int]]): ZIO[Any, Throwable, Unit] =
+  override def showSector(sector: String, sold: MapView[Int,List[Int]]): Task[Unit] =
     for {
       b0 <- ZIO.effect(Ansi.ansi().saveCursorPosition().eraseScreen())
       b1 <- ZIO.effect(drawSector(b0, x0, y0, boxWith+legendLength, boxHeight))

@@ -14,6 +14,6 @@ object RunStadiumSimulator extends zio.App {
 
   override def run(args: List[String]): ZIO[zio.ZEnv, Nothing, Int] =
     ticketDeskSimulatorProgram.foldM(e => console.putStrLn("Failed: " + e) *> IO.succeed(0),
-                  _ => IO.succeed(0)
+                                     _ => IO.succeed(0)
     ).provideLayer(programEnv)
 }
