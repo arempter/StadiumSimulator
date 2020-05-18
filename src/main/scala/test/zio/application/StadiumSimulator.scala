@@ -1,7 +1,9 @@
 package test.zio.application
 
+import test.zio.domain.Database.Database
 import test.zio.domain.Tickets.Tickets
 import test.zio.domain.{Database, Tickets}
+import zio.clock.Clock
 import zio.{IO, ZIO}
 import zio.duration._
 
@@ -15,7 +17,7 @@ object StadiumSimulator {
   private val noOfSaleRounds = 6
   private val maxTickets     = 10
 
-  private def ticketsOffice(id: Int, rounds: Int, tickets: Int, game: String): ZIO[Tickets, String, Unit] =
+  private def ticketsOffice(id: Int, rounds: Int, tickets: Int, game: String): ZIO[Tickets with Database with Clock,  String, Unit] =
     for {
       f <- ZIO.forkAll(ZIO.replicate(rounds)(Tickets.reserveSeats(id, tickets, "NotUsed", game)))
       _ <- f.join.map(_.flatten)
@@ -28,7 +30,7 @@ object StadiumSimulator {
     } yield ()
 
 
-  private def soldSummary: ZIO[Tickets, Nothing, Unit] =
+  private def soldSummary: ZIO[Tickets with Database, Nothing, Unit] =
     for {
       sold <- Tickets.soldTickets()
       _    <- ZIO.succeed(println(s"\n---- Sold Tickets Report -----"))
@@ -38,7 +40,7 @@ object StadiumSimulator {
 
   private val handleFailure: Int => ZIO[Any, Nothing, Unit] = id => IO.succeed(println(s"Id: $id Failed to book all")) *> IO.succeed()
 
-  def ticketDeskSimulatorProgram: ZIO[Tickets, String, Unit] =
+  def ticketDeskSimulatorProgram: ZIO[Tickets with Database with Clock, String, Unit] =
      (ticketsOffice(1, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(200.milliseconds).orElse(handleFailure(1)) &>
       ticketsOffice(2, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(100.milliseconds).orElse(handleFailure(2)) &>
       ticketsOffice(3, random.nextInt(noOfSaleRounds), random.nextInt(maxTickets), game).delay(50.milliseconds).orElse(handleFailure(3))  &>

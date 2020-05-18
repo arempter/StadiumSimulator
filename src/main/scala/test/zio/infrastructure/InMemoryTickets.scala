@@ -4,6 +4,7 @@ import test.zio.domain.Database.Database
 import test.zio.domain.Tickets.Tickets
 import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
 import test.zio.domain.{Database, Tickets}
+import zio.clock.Clock
 import zio.{Schedule, ZIO}
 import zio.stm.{STM, ZSTM}
 import zio.duration._
@@ -45,7 +46,7 @@ case class InMemoryTickets() extends Tickets.Service {
       _        <- Database.upsert(ticket)
     } yield ticket
   }
-  override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Tickets, String, List[GameTicket]] =
+  override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Database with Clock, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
         firstFree <- almostOKSeatSelector(game, noOfSeats, sectorName)
@@ -55,7 +56,7 @@ case class InMemoryTickets() extends Tickets.Service {
       } yield booked)
       .retry(reserveSeatsRetryPolicy)
 
-  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[Tickets, String, List[GameTicket]] =
+  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[Database, String, List[GameTicket]] =
     ZSTM.atomically(
       ZSTM.foreach(seats) { seat => reserveSeat(GameTicket(game, seat, supporter)) })
 

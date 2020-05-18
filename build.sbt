@@ -3,7 +3,7 @@ name := "StadiumSimulator"
 version := "0.1"
 
 scalaVersion := "2.13.2"
-val zioVersion = "1.0.0-RC18-2"
+val zioVersion = "1.0.0-RC19"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio"     % zioVersion,

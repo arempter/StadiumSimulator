@@ -6,6 +6,7 @@ import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
 import test.zio.application.StadiumSimulator.ticketDeskSimulatorProgram
 import test.zio.domain.{Database, Rendering, Tickets}
 import zio._
+import zio.clock.Clock
 import zio.console.Console
 import zio.stm.TSet
 
@@ -24,7 +25,7 @@ object StadiumConsole extends zio.App {
     input <- zio.console.getStrLn
   } yield input
 
-  def menuOptions(i: String): ZIO[Console with Tickets with Rendering, Serializable, Any] =  i match {
+  def menuOptions(i: String): ZIO[Console with Tickets with Database with Rendering with Clock, Serializable, Any] =  i match {
     case "s" => sectorsMenu
     case "b" => ticketMenu
     case "r" => simulationMenu
@@ -32,7 +33,7 @@ object StadiumConsole extends zio.App {
     case _   => displayMainMenu
   }
 
-  val simulationMenu: ZIO[Tickets, String, Unit] = ticketDeskSimulatorProgram
+  val simulationMenu: ZIO[Tickets with Database with Clock, String, Unit] = ticketDeskSimulatorProgram
 
   val sectorsMenu: ZIO[Database with Rendering with Console, Throwable, Unit] =
     for {
