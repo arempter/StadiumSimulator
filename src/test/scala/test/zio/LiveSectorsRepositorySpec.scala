@@ -1,19 +1,20 @@
 package test.zio
 
 import _root_.test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
-import _root_.test.zio.domain.{Database, Sectors}
-import zio.ZIO
+import _root_.test.zio.domain.{Database, Tickets}
+import zio.{ZIO, clock}
 import zio.stm.{STM, TSet}
 import zio.test.Assertion._
 import zio.test._
 
 
-object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
+object LiveTicketsRepositorySpec extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
-    suite("LiveSectorsRepositorySpec")(testReserveSeats, testReserveSeatsWithEmptyDB)
+    suite("LiveTicketsRepositorySpec")(testReserveSeats, testReserveSeatsWithEmptyDB)
 
   val sectorA: Sector = Sector("A")
   val sectorB: Sector = Sector("B")
+  val game            = "game1"
 
   val db: STM[Nothing, TSet[GameTicket]] = TSet.make[GameTicket](
     GameTicket("game1", Seat(sectorB, 1, 1), Supporter(123, "s10")), GameTicket("game1", Seat(sectorB, 1, 4), Supporter(123, "s12")),
@@ -25,22 +26,22 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
 
   private def testEnv(db: STM[Nothing,TSet[GameTicket]]) = {
     val dbLayer = db.commit.toLayer >>> Database.live
-    dbLayer ++ Sectors.live
+    dbLayer ++ Tickets.live ++ clock.Clock.live 
   }
 
   val testReserveSeats: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in non empty db")(
     testM("reserveSeats should return seats seq that can be purchased") {
       for {
-        res <- Sectors.reserveSeats(2, sectorA.name).provideLayer(testEnv(db))
+        res <- Tickets.reserveSeats(1, 2, sectorA.name, game).provideLayer(testEnv(db))
       } yield {
         assert(res.size)(equalTo(2))
       }
     },
     testM("parallel reserveSeats should return seats seq that can be purchased") {
       val res = for {
-        f1 <- Sectors.reserveSeats(2, "A").fork
-        f2 <- Sectors.reserveSeats(2, "A").fork
-        f3 <- Sectors.reserveSeats(2, "A").fork
+        f1 <- Tickets.reserveSeats(1, 2, sectorA.name, game).fork
+        f2 <- Tickets.reserveSeats(2, 2, sectorA.name, game).fork
+        f3 <- Tickets.reserveSeats(3, 2, sectorA.name, game).fork
         r1 <- f1.join
         r2 <- f2.join
         r3 <- f3.join
@@ -55,7 +56,7 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("many parallel reservation should work"){
       val res = for {
-        f <- ZIO.foreach(1 to 20)(_ => Sectors.reserveSeats(4, "B").fork)
+        f <- ZIO.foreach(1 to 20)(_ => Tickets.reserveSeats(1, 4, sectorB.name, game).fork)
         r <- ZIO.foreach(f)(_.join)
       } yield {
         assert(r.flatten.size)(equalTo(20*4))
@@ -64,22 +65,13 @@ object LiveSectorsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("reserveSeats to many seats should fail"){
       for {
-        res <- Sectors.reserveSeats(26, sectorA.name).provideLayer(testEnv(db)).flip
-      } yield assert(res)(equalTo("No free seats available in this Sector"))
-    },
-    testM("findFreeSeats should retrun first seats in each row") {
-      val res = Sectors.findFreeSeats(3, sectorB.name).commit.provideLayer(testEnv(db))
-      assertM(res)(equalTo(Seat(sectorB, 1, 5)))
-    },
-    testM("findFreeSeats Fails when capacity is incorrect"){
-      for {
-        res <- Sectors.findFreeSeats(26, sectorA.name).commit.provideLayer(testEnv(db)).flip
-      } yield assert(res)(equalTo("No free seats available in this Sector"))
+        res <- Tickets.reserveSeats(1, 26, sectorA.name, game).provideLayer(testEnv(db)).flip
+      } yield assert(res)(equalTo("Incorrect capacity"))
     }
   )
   val testReserveSeatsWithEmptyDB: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in empty db")(
     testM("reserve seats should retrun seat seq on random start") {
-      val res = Sectors.reserveSeats(5, sectorA.name).provideLayer(testEnv(emptyDb))
+      val res = Tickets.reserveSeats(1, 5, sectorA.name, game).provideLayer(testEnv(emptyDb))
       assertM(res.map(_.size))(equalTo(5))
     })
 

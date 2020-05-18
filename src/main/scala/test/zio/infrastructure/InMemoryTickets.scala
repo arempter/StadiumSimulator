@@ -70,6 +70,7 @@ case class InMemoryTickets() extends Tickets.Service {
                              Seat(Sector(sectors(Random.nextInt(21)).toString), row, seat),
                              Supporter(random.nextInt(100), supporter)))
     for {
+      _            <- STM.fail("Incorrect capacity").when(rowSize-noOfSeats < 0)
       randomTicket <- generateTicket
       isSold       <- Database.exists(randomTicket)
       seatSold     <- Database.select(gt =>
