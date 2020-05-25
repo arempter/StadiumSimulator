@@ -19,66 +19,70 @@ case class InMemoryTickets() extends Tickets.Service {
 
   override def soldTickets(): ZIO[Database, Nothing, Int] = ZIO.accessM[Database](_.get.count())
 
-  private def canBeReserved(isSold: Boolean, newTicket: GameTicket, existingTickets: List[GameTicket]): STM[String, Unit] = {
-    val outsideCapacity = newTicket.seat.row > noRows || newTicket.seat.seat > rowSize
-    if(isSold)
-      STM.fail("Already sold!")
-    else if (outsideCapacity)
-      STM.fail("Incorrect seat or row!")
-    else if (existingTickets.nonEmpty)
-      STM.fail("Seat already sold!")
-    else STM.succeed()
-  }
+  private def canBeReserved(newTicket: GameTicket): ZSTM[Database, String, Unit] = {
+    val ticketExists: GameTicket => Boolean = gt => gt.seat.seat   == newTicket.seat.seat &&
+                                                    gt.seat.sector == newTicket.seat.sector &&
+                                                    gt.seat.row    == newTicket.seat.row &&
+                                                    gt.game        == newTicket.game
 
-  private def reserveSeat(ticket: GameTicket): ZSTM[Database, String, GameTicket] = {
-    //todo: deduplicate
-    val ticketSold: GameTicket => Boolean = gt =>
-                                            gt.seat.seat   == ticket.seat.seat &&
-                                            gt.seat.sector == ticket.seat.sector &&
-                                            gt.seat.row    == ticket.seat.row &&
-                                            gt.game        == ticket.game
+    val outsideCapacity = newTicket.seat.row > noRows || newTicket.seat.seat > rowSize
 
     for {
-      isSold   <- Database.exists(ticket)
-      seatSold <- Database.select(ticketSold)
-      _        <- STM.succeed(println(s"DeskId: ${ticket.deskId}, trying to reserve seat: $ticket")) *> canBeReserved(isSold, ticket, seatSold)
-      _        <- Database.upsert(ticket)
-    } yield ticket
+     alreadySold <- Database.select(ticketExists)
+      _          <- STM.fail(newTicket + " Incorrect seat or row!").when(outsideCapacity)
+      _          <- STM.fail(newTicket + " Seat sold!").when(alreadySold.nonEmpty)
+    } yield ()
   }
+
+  //todo: remove not used
+  private def printTryForTicket(tickets: Seq[GameTicket]) =
+    for {
+      l <- ZSTM.foreach(tickets)(t=>Database.exists(t))
+      _ <- STM.succeed(tickets.foreach(t=>println(s"DeskId: ${t.deskId}, sold seat: $t"))).when(!l.exists(_.equals(false)))
+    } yield ()
+
+  private def reserveSeats(tickets: Seq[GameTicket]): ZSTM[Database, String, List[GameTicket]] = {
+    for {
+      _            <- ZSTM.foreach(tickets)(canBeReserved)
+      _            <- ZSTM.foreach(tickets)(t=>Database.upsert(t))
+    } yield tickets.toList
+  }
+
+  //todo: remove sector
   override def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[TicketsEnv, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
-        firstFree <- almostOKSeatSelector(game, noOfSeats, sectorName)
-        booked    <- ZSTM.foreach(firstFree.seat.seat until firstFree.seat.seat + noOfSeats) { nextSeat =>
-                                    reserveSeat(firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat), deskId = deskId))
-        }
+        firstFree <- almostOKSeatSelector(game, noOfSeats)
+        booked    <- {
+                      val listOfSeats = (firstFree.seat.seat until firstFree.seat.seat + noOfSeats).map(nextSeat =>
+                                firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat), deskId = deskId))
+                       reserveSeats(listOfSeats)
+                     }
       } yield booked)
-      .retry(reserveSeatsRetryPolicy)
+    .tapError(e=>ZIO.succeed(println("Error: " + e)))
+    .retry(reserveSeatsRetryPolicy)
 
-  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[TicketsEnv, String, List[GameTicket]] =
-    ZSTM.atomically(
-      ZSTM.foreach(seats) { seat => reserveSeat(GameTicket(game, seat, supporter)) })
 
-  private def almostOKSeatSelector(game: String, noOfSeats: Int, sectorName: String): ZSTM[Database, String, GameTicket] = {
+  override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[TicketsEnv, String, List[GameTicket]] = {
+    val tickets = seats.map{ seat => GameTicket(game, seat, supporter) }
+    ZSTM.atomically(reserveSeats(tickets))
+  }
+
+  private def almostOKSeatSelector(game: String, noOfSeats: Int): ZSTM[Database, String, GameTicket] = {
     val sectors   = 'A' to 'U'
+    def swapIfZero(v: Int) = if(v == 0) 1 else v
     def supporter = random.alphanumeric.take(10).mkString
-    def row       = { val ch = random.nextInt(noRows); if (ch == 0) 1 else ch }
-    def seat      = { val ch = random.nextInt(rowSize-noOfSeats); if (ch == 0) 1 else ch }
+    def row       = { val ch = random.nextInt(noRows);            swapIfZero(ch) }
+    def seat      = { val ch = random.nextInt(rowSize-noOfSeats); swapIfZero(ch) }
 
     def generateTicket: ZSTM[Database, String, GameTicket] =
       STM.succeed(GameTicket(game,
                              Seat(Sector(sectors(Random.nextInt(21)).toString), row, seat),
                              Supporter(random.nextInt(100), supporter)))
     for {
-      _            <- STM.fail("Incorrect capacity").when(rowSize-noOfSeats < 0)
+      _            <- STM.fail("Incorrect capacity").when(rowSize - noOfSeats < 0)
       randomTicket <- generateTicket
-      isSold       <- Database.exists(randomTicket)
-      seatSold     <- Database.select(gt =>
-                                      gt.seat.seat   == randomTicket.seat.seat &&
-                                      gt.seat.sector == randomTicket.seat.sector &&
-                                      gt.seat.row    == randomTicket.seat.row &&
-                                      gt.game        == randomTicket.game)
-      _            <- canBeReserved(isSold, randomTicket, seatSold)
+      _            <- canBeReserved(randomTicket)
     } yield randomTicket
   }
 }

@@ -1,8 +1,8 @@
 package test.zio.infrastructure
 
 import test.zio.domain.Database
-import test.zio.domain.model.GameTicket
-import zio.UIO
+import test.zio.domain.model.{GameTicket, Sector}
+import zio.{UIO, ZIO}
 import zio.stm.{STM, TSet}
 
 case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
@@ -10,7 +10,7 @@ case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
   // could accept sortOrder
   override def select(cond: GameTicket => Boolean): STM[Nothing, List[GameTicket]] =
     db.toList
-      .map(l=> l.filter(cond))
+      .map(l => l.filter(cond))
 
   override def exists(cond: GameTicket): STM[Nothing, Boolean] = db.contains(cond)
 
@@ -28,5 +28,11 @@ case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
       r <- UIO.succeed(s.count(_.deskId == id))
     } yield r
   }
+
+  override def countBySector(): UIO[Map[Sector, Int]] =
+    for {
+      d <- select(_ => true).commit
+      g <- ZIO.succeed(d.groupBy(_.seat.sector).view.mapValues(_.size).toMap)
+    } yield g
 
 }
