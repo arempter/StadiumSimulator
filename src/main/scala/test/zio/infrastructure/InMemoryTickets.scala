@@ -35,30 +35,25 @@ case class InMemoryTickets() extends Tickets.Service {
     } yield ()
   }
 
-  private def reserveSeats(tickets: Seq[GameTicket]): ZSTM[Database, String, List[GameTicket]] = {
+  private def makeReservation(tickets: Seq[GameTicket]): ZSTM[Database, String, List[GameTicket]] = {
     for {
       _            <- ZSTM.foreach(tickets)(canBeReserved)
       _            <- ZSTM.foreach(tickets)(t=>Database.upsert(t))
     } yield tickets.toList
   }
 
-  //todo: why deskId is 0 at retry?
   override def reserveSeats(deskId: Int, noOfSeats: Int, game: String): ZIO[TicketsEnv, String, List[GameTicket]] =
     ZSTM.atomically(
       for {
-        firstFree <- almostOKSeatSelector(game, noOfSeats)
-        booked    <- {
-                      val listOfSeats = (firstFree.seat.seat until firstFree.seat.seat + noOfSeats).map(nextSeat =>
-                                firstFree.copy(seat = firstFree.seat.copy(seat = nextSeat), deskId = deskId))
-                       reserveSeats(listOfSeats)
-                     }
-      } yield booked)
+        freeSeats <- almostOKSeatSelector(deskId, game, noOfSeats)
+        sold      <- makeReservation(freeSeats)
+      } yield sold)
     .tapError(e=>ZIO.succeed(println("Error: " + e)))
     .retry(reserveSeatsRetryPolicy)
 
   override def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[TicketsEnv, String, List[GameTicket]] = {
     val tickets = seats.map{ seat => GameTicket(game, seat, supporter) }
-    ZSTM.atomically(reserveSeats(tickets))
+    ZSTM.atomically(makeReservation(tickets))
   }
 
   private def generateTicket(game: String, noOfSeats: Int): STM[Nothing, GameTicket] = {
@@ -72,12 +67,17 @@ case class InMemoryTickets() extends Tickets.Service {
       Supporter(random.nextInt(100), supporter)))
   }
 
-  private def almostOKSeatSelector(game: String, noOfSeats: Int): ZSTM[Database, String, GameTicket] = {
+  private def almostOKSeatSelector(deskId: Int, game: String, noOfSeats: Int): ZSTM[Database, String, List[GameTicket]] = {
     for {
-      _            <- STM.fail("Incorrect capacity").when(rowSize - noOfSeats < 0)
-      randomTicket <- generateTicket(game, noOfSeats)
-      _            <- STM.fail("Selected seat outside capacity").when(randomTicket.seat.seat + noOfSeats > rowSize)
-      _            <- canBeReserved(randomTicket)
-    } yield randomTicket
+      _             <- STM.fail("Incorrect capacity").when(rowSize - noOfSeats < 0)
+      randomTicket  <- generateTicket(game, noOfSeats)
+      _             <- STM.fail("Selected seat outside capacity").when(randomTicket.seat.seat + noOfSeats > rowSize)
+      randomTickets <- {
+                          val seats = (randomTicket.seat.seat until randomTicket.seat.seat + noOfSeats).map{ nextSeat =>
+                            randomTicket.copy(seat = randomTicket.seat.copy(seat = nextSeat), deskId = deskId) }
+                          STM.succeed(seats.toList)
+                       }
+      _             <- ZSTM.foreach(randomTickets)(canBeReserved)
+    } yield randomTickets
   }
 }

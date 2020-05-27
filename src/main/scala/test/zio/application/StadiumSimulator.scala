@@ -41,14 +41,14 @@ object StadiumSimulator {
   private def showSalePerSector() =
     for {
       s <- Database.countBySector()
-      _ <- ZIO.succeed(println(s"$s"))
+      _ <- ZIO.succeed(println(s"\nIn sector sold: $s"))
     } yield ()
 
   private def soldSummary: ZIO[Tickets with Database, Nothing, Unit] =
     for {
       sold <- Tickets.ticketsSold()
       _    <- ZIO.succeed(println(s"\n---- Sold Tickets Report -----"))
-      _    <- ZIO.succeed(println(s"Sold total : $sold"))
+      _    <- ZIO.succeed(println(s"\nSold total : $sold"))
       _    <- ZIO.foreach(1 to noOfDesks)(i=> showSalePerDesk(i))
     } yield ()
 
