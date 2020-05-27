@@ -17,21 +17,21 @@ object StadiumConsole extends zio.App {
   val dbLayer    = db.commit.toLayer >>> Database.live
   val programEnv = dbLayer ++ Tickets.live ++ console.Console.live ++ clock.Clock.live ++ Rendering.live
 
-  val displayMainMenu: RIO[Console, String] = for {
+  val mainMenu: RIO[Console, String] = for {
     _    <- console.putStrLn("\nMenu")
     _    <- console.putStrLn("s - to select sector...")
     _    <- console.putStrLn("b - to buy tickets")
-    _    <- console.putStrLn("r - to run simulation")
+    _    <- console.putStrLn("r - to run sale simulation")
     _    <- console.putStrLn("q - to exit")
     input <- zio.console.getStrLn
   } yield input
 
-  def menuOptions(i: String): ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Any] =  i match {
+  def optionsMenu(i: String): ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Any] =  i match {
     case "s" => sectorsMenu
     case "b" => ticketMenu
     case "r" => simulationMenu
     case "q" => ZIO.fail("Closing console...")
-    case _   => displayMainMenu
+    case _   => mainMenu
   }
 
   def simulationMenu: ZIO[Tickets with TicketsEnv, String, Unit] = ticketDeskSimulatorProgram
@@ -45,12 +45,11 @@ object StadiumConsole extends zio.App {
                Database.select(inSector).commit
                 .map(_.groupBy(_.seat.row)).map(_.view.mapValues(_.map(_.seat.seat)))
       }
-      _    <- zio.console.putStrLn(sold.keys.toString() + sold.values.toString())
       _    <- Rendering.showSector(s.toUpperCase, sold)
     } yield ()
 
   //todo: Add some validation to input
-  def parseTicketInput(seats: String, sector: String, row: Int): List[Seat] = {
+  private def parseTicketInput(seats: String, sector: String, row: Int): List[Seat] = {
     val seatsP = seats.split(",").toList
     seatsP.map(s=>Seat(Sector(sector), row, s.toInt))
   }
@@ -76,8 +75,8 @@ object StadiumConsole extends zio.App {
 
   val menuProgram: ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Nothing] =
     (for {
-      i <- displayMainMenu
-      _ <- menuOptions(i)
+      i <- mainMenu
+      _ <- optionsMenu(i)
     } yield()).forever
 
   override def run(args: List[String]): ZIO[zio.ZEnv, Nothing, Int] =

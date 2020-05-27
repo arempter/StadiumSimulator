@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit
 import test.zio.domain.Database.Database
 import test.zio.domain.Tickets.{Tickets, TicketsEnv}
 import test.zio.domain.{Database, Tickets}
-import zio.clock.Clock
 import zio.duration._
 import zio.{IO, ZIO}
 
@@ -19,23 +18,24 @@ object StadiumSimulator {
   private val noOfSaleRounds = 4
   private val maxTickets     = 6
 
-
   private def swapIfZero(v: Int) = if(v == 0) 1 else v
+  private def randomDuration = Duration.apply(random.nextInt(300), TimeUnit.MILLISECONDS)
 
-  //todo: test forkAll vs foreach
-  private def ticketsOffice(id: Int, rounds: Int = swapIfZero(random.nextInt(noOfSaleRounds)),
-                            tickets: Int = swapIfZero(random.nextInt(maxTickets)), game: String = game): ZIO[Tickets with Database with Clock,  String, Unit] =
+  private def ticketsOffice(id: Int,
+                            rounds: Int = swapIfZero(random.nextInt(noOfSaleRounds)),
+                            tickets: Int = swapIfZero(random.nextInt(maxTickets)),
+                            game: String = game
+                           ): ZIO[Tickets with TicketsEnv,  String, Unit] =
     for {
-      _ <- ZIO.succeed(println(s"running id: $id inQueue: $rounds tickets: $tickets"))
-      //f <- ZIO.forkAll(ZIO.replicate(rounds)(Tickets.reserveSeats(id, tickets, "NotUsed", game).delay(randomDuration)))
-      f <- ZIO.foreach(1 to rounds)(_=>Tickets.reserveSeats(id, tickets, "NotUsed", game).delay(randomDuration))
-//      _ <- f.join.map(_.flatten)
-    } yield f.flatten
+      _ <- ZIO.succeed(println(s"Running TicketDesk Id: $id inQueue: $rounds tickets: $tickets"))
+      f <- ZIO.forkAll(ZIO.replicate(rounds)(Tickets.reserveSeats(id, tickets, game).delay(randomDuration)))
+      _ <- f.join.map(_.flatten)
+    } yield ()
 
   private def showSalePerDesk(id: Int) =
     for {
       d <- Database.countByDesk(id)
-      _ <- ZIO.succeed(println(s"TicketDesk id: $id sold: $d"))
+      _ <- ZIO.succeed(println(s"TicketDesk Id: $id sold: $d"))
     } yield ()
 
   private def showSalePerSector() =
@@ -46,21 +46,17 @@ object StadiumSimulator {
 
   private def soldSummary: ZIO[Tickets with Database, Nothing, Unit] =
     for {
-      sold <- Tickets.soldTickets()
+      sold <- Tickets.ticketsSold()
       _    <- ZIO.succeed(println(s"\n---- Sold Tickets Report -----"))
       _    <- ZIO.succeed(println(s"Sold total : $sold"))
       _    <- ZIO.foreach(1 to noOfDesks)(i=> showSalePerDesk(i))
     } yield ()
 
   private val handleFailure: Int => ZIO[Any, Nothing, Unit] = id => IO.succeed(println(s"Id: $id Failed to book all")) *> IO.succeed()
-  private val printError: String => ZIO[Any, String, Unit] = e=> IO.succeed(println(s"Failed to book $e"))
-
-  private def randomDuration = Duration.apply(random.nextInt(300), TimeUnit.MILLISECONDS)
 
   def ticketDeskSimulatorProgram: ZIO[Tickets with TicketsEnv, String, Unit] =
-     (ticketsOffice(1).mapError(printError).orElse(handleFailure(1))  &>
-      ticketsOffice(2).mapError(printError).orElse(handleFailure(2))  &>
-      ticketsOffice(3).mapError(printError).orElse(handleFailure(3))  &>
-      ticketsOffice(4).mapError(printError).orElse(handleFailure(4))) *> (soldSummary *> showSalePerSector())
-
+    (ticketsOffice(1).orElse(handleFailure(1)) &>
+      ticketsOffice(2).orElse(handleFailure(2)) &>
+      ticketsOffice(3).orElse(handleFailure(3)) &>
+      ticketsOffice(4).orElse(handleFailure(4))) *> (soldSummary *> showSalePerSector())
 }
