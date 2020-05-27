@@ -33,18 +33,18 @@ object LiveTicketsRepositorySpec extends DefaultRunnableSpec {
   val testReserveSeats: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in non empty db")(
     testM("reserveSeats should return seats seq that can be purchased") {
       for {
-        res <- Tickets.reserveSeats(1, 2, sectorA.name, game).provideLayer(testEnv(db))
+        res <- Tickets.reserveSeats(1, 2, game).provideLayer(testEnv(db))
       } yield {
         assert(res.size)(equalTo(2))
       }
     },
     testM("parallel reserveSeats should return seats seq that can be purchased") {
       val res = for {
-        f1 <- ZIO.foreach(1 to 3)(i=>Tickets.reserveSeats(i, 2, sectorA.name, game).fork)
+        f1 <- ZIO.foreach(1 to 3)(i=>Tickets.reserveSeats(i, 2, game).fork)
         r  <- ZIO.foreach(f1)(_.join)
-        f1 <- Tickets.reserveSeats(1, 2, sectorA.name, game).fork
-        f2 <- Tickets.reserveSeats(2, 2, sectorA.name, game).fork
-        f3 <- Tickets.reserveSeats(3, 2, sectorA.name, game).fork
+        f1 <- Tickets.reserveSeats(1, 2, game).fork
+        f2 <- Tickets.reserveSeats(2, 2, game).fork
+        f3 <- Tickets.reserveSeats(3, 2, game).fork
         r1 <- f1.join
         r2 <- f2.join
         r3 <- f3.join
@@ -59,7 +59,7 @@ object LiveTicketsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("more parallel reserveSeats should return seats seq that can be purchased") {
       val res = for {
-        f1 <- ZIO.foreach(1 to 20)(i=>Tickets.reserveSeats(i, 2, sectorA.name, game).fork)
+        f1 <- ZIO.foreach(1 to 20)(i=>Tickets.reserveSeats(i, 2, game).fork)
         r  <- ZIO.foreach(f1)(_.join)
       } yield {
         assert(r.flatten.size)(equalTo(40))
@@ -68,7 +68,7 @@ object LiveTicketsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("many parallel reservation should work"){
       val res = for {
-        f <- ZIO.foreach(1 to 20)(_ => Tickets.reserveSeats(1, 4, sectorB.name, game).fork)
+        f <- ZIO.foreach(1 to 20)(_ => Tickets.reserveSeats(1, 4, game).fork)
         r <- ZIO.foreach(f)(_.join)
       } yield {
         assert(r.flatten.size)(equalTo(20*4))
@@ -92,13 +92,13 @@ object LiveTicketsRepositorySpec extends DefaultRunnableSpec {
     },
     testM("reserveSeats to many seats should fail"){
       for {
-        res <- Tickets.reserveSeats(1, 26, sectorA.name, game).provideLayer(testEnv(db)).flip
+        res <- Tickets.reserveSeats(1, 26, game).provideLayer(testEnv(db)).flip
       } yield assert(res)(equalTo("Incorrect capacity"))
     }
   )
   val testReserveSeatsWithEmptyDB: Spec[Any, TestFailure[Any], TestSuccess] = suite("Ticket reservation in empty db")(
     testM("reserve seats should retrun seat seq on random start") {
-      val res = Tickets.reserveSeats(1, 5, sectorA.name, game).provideLayer(testEnv(emptyDb))
+      val res = Tickets.reserveSeats(1, 5, game).provideLayer(testEnv(emptyDb))
       assertM(res.map(_.size))(equalTo(5))
     })
 
