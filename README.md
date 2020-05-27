@@ -8,8 +8,6 @@ ConsoleMode:
 sbt "runMain test.zio.StadiumConsole"
 ```
 
-SimulatorMode:
+### Sample usage 
 
-```
-sbt "runMain test.zio.RunStadiumSimulator"
-```
+![alt text](./docs/StadiumConsole.gif) 
