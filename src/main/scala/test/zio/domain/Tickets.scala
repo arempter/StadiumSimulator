@@ -11,18 +11,18 @@ object Tickets {
   type TicketsEnv = Database with Clock
 
   trait Service {
-    def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[TicketsEnv, String, List[GameTicket]]
+    def reserveSeats(deskId: Int, noOfSeats: Int, game: String): ZIO[TicketsEnv, String, List[GameTicket]]
     def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[TicketsEnv, String, List[GameTicket]]
-    def soldTickets(): ZIO[Database, Nothing, Int]
+    def ticketsSold(): ZIO[Database, Nothing, Int]
   }
 
-  def reserveSeats(deskId: Int, noOfSeats: Int, sectorName: String, game: String): ZIO[Tickets with TicketsEnv, String,  List[GameTicket]] =
-    ZIO.accessM(_.get.reserveSeats(deskId, noOfSeats, sectorName, game))
+  def reserveSeats(deskId: Int, noOfSeats: Int, game: String): ZIO[Tickets with TicketsEnv, String,  List[GameTicket]] =
+    ZIO.accessM(_.get.reserveSeats(deskId, noOfSeats, game))
 
   def reserveSeats(seats: Seq[Seat], game: String, supporter: Supporter): ZIO[Tickets with TicketsEnv, String,  List[GameTicket]] =
     ZIO.accessM(_.get.reserveSeats(seats, game, supporter))
 
-  def soldTickets(): ZIO[Tickets with Database, Nothing, Int] = ZIO.accessM(_.get.soldTickets())
+  def ticketsSold(): ZIO[Tickets with Database, Nothing, Int] = ZIO.accessM(_.get.ticketsSold())
 
   val live = ZLayer.succeed[Service](InMemoryTickets())
 

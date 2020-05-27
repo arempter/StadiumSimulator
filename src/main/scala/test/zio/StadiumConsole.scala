@@ -1,12 +1,13 @@
 package test.zio
+import java.io.IOException
+
+import test.zio.application.StadiumSimulator.ticketDeskSimulatorProgram
 import test.zio.domain.Database.Database
 import test.zio.domain.Rendering.Rendering
 import test.zio.domain.Tickets.{Tickets, TicketsEnv}
 import test.zio.domain.model.{GameTicket, Seat, Sector, Supporter}
-import test.zio.application.StadiumSimulator.ticketDeskSimulatorProgram
 import test.zio.domain.{Database, Rendering, Tickets}
 import zio._
-import zio.clock.Clock
 import zio.console.Console
 import zio.stm.TSet
 
@@ -16,44 +17,44 @@ object StadiumConsole extends zio.App {
   val dbLayer    = db.commit.toLayer >>> Database.live
   val programEnv = dbLayer ++ Tickets.live ++ console.Console.live ++ clock.Clock.live ++ Rendering.live
 
-  val displayMainMenu: RIO[Console, String] = for {
-    _    <- console.putStrLn("Menu")
+  val mainMenu: RIO[Console, String] = for {
+    _    <- console.putStrLn("\nMenu")
     _    <- console.putStrLn("s - to select sector...")
     _    <- console.putStrLn("b - to buy tickets")
-    _    <- console.putStrLn("r - to run simulation")
+    _    <- console.putStrLn("r - to run sale simulation")
     _    <- console.putStrLn("q - to exit")
     input <- zio.console.getStrLn
   } yield input
 
-  def menuOptions(i: String): ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Any] =  i match {
+  def optionsMenu(i: String): ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Any] =  i match {
     case "s" => sectorsMenu
     case "b" => ticketMenu
     case "r" => simulationMenu
     case "q" => ZIO.fail("Closing console...")
-    case _   => displayMainMenu
+    case _   => mainMenu
   }
 
-  val simulationMenu: ZIO[Tickets with TicketsEnv, String, Unit] = ticketDeskSimulatorProgram
+  def simulationMenu: ZIO[Tickets with TicketsEnv, String, Unit] = ticketDeskSimulatorProgram
 
   val sectorsMenu: ZIO[Database with Rendering with Console, Throwable, Unit] =
     for {
       _    <- console.putStrLn("Select sector...")
       s    <- zio.console.getStrLn
       sold <- {
-               val selectInSector: GameTicket => Boolean = gt => gt.seat.sector.name == s.toUpperCase
-               Database.select(selectInSector).commit
+               val inSector: GameTicket => Boolean = gt => gt.seat.sector.name == s.toUpperCase
+               Database.select(inSector).commit
                 .map(_.groupBy(_.seat.row)).map(_.view.mapValues(_.map(_.seat.seat)))
       }
       _    <- Rendering.showSector(s.toUpperCase, sold)
     } yield ()
 
   //todo: Add some validation to input
-  def parseTicketInput(seats: String, sector: String, row: Int): List[Seat] = {
+  private def parseTicketInput(seats: String, sector: String, row: Int): List[Seat] = {
     val seatsP = seats.split(",").toList
     seatsP.map(s=>Seat(Sector(sector), row, s.toInt))
   }
 
-  val ticketMenu =
+  val ticketMenu: ZIO[Console with Tickets with TicketsEnv, IOException, Unit] =
     for {
       _         <- console.putStrLn("Buying tickets...")
       _         <- console.putStrLn("What game?")
@@ -72,10 +73,10 @@ object StadiumConsole extends zio.App {
                   .catchAll(e=>console.putStrLn(e) *> IO.succeed())
     } yield ()
 
-  val menuProgram =
+  val menuProgram: ZIO[Tickets with TicketsEnv with Rendering with Console, Serializable, Nothing] =
     (for {
-      i <- displayMainMenu
-      _ <- menuOptions(i)
+      i <- mainMenu
+      _ <- optionsMenu(i)
     } yield()).forever
 
   override def run(args: List[String]): ZIO[zio.ZEnv, Nothing, Int] =
