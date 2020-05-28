@@ -18,11 +18,11 @@ object StadiumConsole extends zio.App {
   val programEnv = dbLayer ++ Tickets.live ++ console.Console.live ++ clock.Clock.live ++ Rendering.live
 
   val mainMenu: RIO[Console, String] = for {
-    _    <- console.putStrLn("\nMenu")
-    _    <- console.putStrLn("s - to select sector...")
-    _    <- console.putStrLn("b - to buy tickets")
-    _    <- console.putStrLn("r - to run sale simulation")
-    _    <- console.putStrLn("q - to exit")
+    _     <- console.putStrLn("\nMenu")
+    _     <- console.putStrLn("s - to select sector...")
+    _     <- console.putStrLn("b - to buy tickets")
+    _     <- console.putStrLn("r - to run sale simulation")
+    _     <- console.putStrLn("q - to exit")
     input <- zio.console.getStrLn
   } yield input
 
