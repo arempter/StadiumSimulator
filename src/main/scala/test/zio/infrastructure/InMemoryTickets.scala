@@ -38,7 +38,7 @@ case class InMemoryTickets() extends Tickets.Service {
   private def makeReservation(tickets: Seq[GameTicket]): ZSTM[Database, String, List[GameTicket]] = {
     for {
       _            <- ZSTM.foreach(tickets)(canBeReserved)
-      _            <- ZSTM.foreach(tickets)(t=>Database.upsert(t))
+      _            <- ZSTM.foreach(tickets)(t=>Database.insert(t))
     } yield tickets.toList
   }
 

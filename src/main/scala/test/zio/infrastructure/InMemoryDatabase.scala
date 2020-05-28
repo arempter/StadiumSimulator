@@ -12,9 +12,9 @@ case class InMemoryDatabase(db: TSet[GameTicket]) extends Database.Service {
     db.toList
       .map(l => l.filter(cond))
 
-  override def exists(cond: GameTicket): STM[Nothing, Boolean] = db.contains(cond)
+  override def exists(ticket: GameTicket): STM[Nothing, Boolean] = db.contains(ticket)
 
-  override def upsert(ticket: GameTicket): STM[Nothing, Unit] = ticket match {
+  override def insert(ticket: GameTicket): STM[Nothing, Unit] = ticket match {
     case row: GameTicket => db.put(row)
     case _               => STM.unit
   }
